@@ -52,7 +52,7 @@ export async function sendJobCard(job) {
 
 bot.action(/^apply:(.+)$/, async (ctx) => {
   const job = getJob(ctx.match[1]);
-  if (!job) return ctx.answerCbQuery('Job not found');
+  if (!job) return ctx.answerCbQuery('This card is stale — send /pending for the current list');
   if (job.status !== 'pending') return ctx.answerCbQuery(`Already ${job.status}`);
 
   await ctx.answerCbQuery('Applying…');
@@ -72,7 +72,7 @@ bot.action(/^apply:(.+)$/, async (ctx) => {
 
 bot.action(/^skip:(.+)$/, async (ctx) => {
   const job = getJob(ctx.match[1]);
-  if (!job) return ctx.answerCbQuery('Job not found');
+  if (!job) return ctx.answerCbQuery('This card is stale — send /pending for the current list');
   setStatus(job.id, 'skipped', 'skipped by you');
   await ctx.answerCbQuery('Skipped');
   await ctx.editMessageReplyMarkup(undefined).catch(() => {});
@@ -80,7 +80,7 @@ bot.action(/^skip:(.+)$/, async (ctx) => {
 
 bot.action(/^rewrite:(.+)$/, async (ctx) => {
   const job = getJob(ctx.match[1]);
-  if (!job) return ctx.answerCbQuery('Job not found');
+  if (!job) return ctx.answerCbQuery('This card is stale — send /pending for the current list');
   await ctx.answerCbQuery('Rewriting…');
   try {
     const letter = await writeCoverLetter(job);
@@ -93,6 +93,42 @@ bot.action(/^rewrite:(.+)$/, async (ctx) => {
 });
 
 // ----------------------------------------------------------------- commands
+
+/**
+ * index.js owns the search pipeline and imports this module, so it hands the
+ * function down rather than being imported back (which would be circular).
+ */
+let searchHandler = null;
+let searching = false;
+export const onSearchRequest = (fn) => { searchHandler = fn; };
+
+bot.command('search', async (ctx) => {
+  if (!searchHandler) return ctx.reply('Search is not wired up — restart the bot.');
+  if (searching) return ctx.reply('⏳ A search is already running. Hang on.');
+
+  searching = true;
+  try {
+    await searchHandler();
+  } catch (err) {
+    await ctx.reply(`❌ Search failed: ${err.message}`);
+  } finally {
+    searching = false;
+  }
+});
+
+bot.command('report', (ctx) => dailyReport().catch((e) => ctx.reply(`❌ ${e.message}`)));
+
+bot.command(['help', 'start'], (ctx) => ctx.replyWithHTML([
+  '<b>iOS Job Bot</b>',
+  '',
+  '/search — search all boards right now',
+  '/pending — re-send jobs awaiting your decision',
+  '/report — today\'s summary',
+  '/stats — totals so far',
+  '',
+  `Runs on its own daily at <b>${config.searchTime}</b>, with a report at <b>${config.reportTime}</b>.`,
+  'Already-seen jobs are never sent twice, so /search is safe to run any time.',
+].join('\n')));
 
 bot.command('pending', async (ctx) => {
   const jobs = pendingJobs();

@@ -21,21 +21,28 @@ three gates:
 
 `src/geo.js` requires *positive evidence* that a role hires beyond one country:
 
-| Location says | Verdict |
-|---|---|
-| Worldwide / Anywhere / Global | ✅ |
-| EMEA / Europe / CEE / CIS / Central Asia | ✅ |
-| Azerbaijan | ✅ |
-| Bare "Remote" with no country | ✅ flagged as unverified |
-| Remote – United States, Remote – Canada | ❌ |
-| Berlin / London / any single city | ❌ |
-| Germany / UK / India / any single country | ❌ |
-| Body demands US/EU/UK work authorization | ❌ |
+Three tiers, not a yes/no:
 
-Naming exactly one country is treated as a restriction, because that is what it
-nearly always is. This is deliberately aggressive: a false reject costs you one
-job you'd probably not have got anyway, a false accept costs a cover letter and
-the time you spend on an application that cannot succeed.
+| Location says | Verdict | Card shows |
+|---|---|---|
+| Worldwide / Anywhere / Global | ✅ open | 🌍 Open region |
+| EMEA / Europe / CEE / CIS / Caucasus | ✅ open | 🌍 Open region |
+| Azerbaijan | ✅ open | 🌍 Open region |
+| Bare "Remote", no country named | ✅ open | 🌍 Open region |
+| Poland / Spain / UK / UAE / Turkey / Georgia … | ⚠️ plausible | ⚠️ *X*-scoped |
+| United States, Canada, US city or state | ❌ rejected | — |
+| India, Singapore, Australia, Brazil … | ❌ rejected | — |
+| Body demands US/EU/UK work authorization | ❌ rejected | — |
+
+The middle tier matters. A role posted as "Poland" is not guaranteed, but
+European and CIS employers routinely engage remote contractors across the
+region and the timezone works — so it is surfaced with a ⚠️ label and you
+decide. Far countries are rejected outright: timezone, payroll, and visa all
+bite, and you said US and Canada remote are useless.
+
+Note that one role often appears once per country (Ruby Labs "Lead iOS
+Engineer" is listed for Poland, Lithuania and Latvia). Deduplication is by
+company + title, so you see it once.
 
 ---
 
@@ -92,9 +99,16 @@ You should get a Telegram message saying the bot is online.
 | Tap **✅ Apply** | Browser opens, fills the form, uploads your resume, submits, sends you a screenshot |
 | Tap **⏭ Skip** | Job is marked skipped and never shown again |
 | Tap **🔄 Rewrite letter** | Generates a different cover letter for that job |
+| Send `/search` | Searches every board right now, without waiting for tomorrow |
 | Send `/pending` | Re-sends anything still awaiting your decision |
+| Send `/report` | Today's summary on demand |
 | Send `/stats` | Totals: applied / skipped / failed |
+| Send `/help` | The command list |
 | Nothing, at 21:00 | Daily report arrives |
+
+`/search` is safe to run as often as you like — already-seen jobs are never
+sent twice, so a repeat search costs nothing unless something new appeared.
+Only one search runs at a time; a second request is told to wait.
 
 ### Useful commands
 

@@ -1,12 +1,21 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import cron from 'node-cron';
-import { config, assertReady } from './config.js';
+import { config, assertReady, ROOT } from './config.js';
 import { fetchAllJobs } from './sources.js';
 import { filterAndRank } from './match.js';
 import { writeCoverLetter } from './letter.js';
 import { isKnown, jobId, insertJob, getJob } from './db.js';
-import { bot, send, sendJobCard, dailyReport } from './bot.js';
+import { bot, send, sendJobCard, dailyReport, onSearchRequest } from './bot.js';
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
+
+// Remembers which day the search and report last completed, so a run missed
+// while the Mac was asleep is picked up rather than lost.
+const statePath = path.join(ROOT, 'data', 'state.json');
+const state = fs.existsSync(statePath)
+  ? JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  : { lastSearch: null, lastReport: null };
 
 export async function runSearch() {
   log('Search starting');
@@ -54,6 +63,9 @@ export async function runSearch() {
   return sent;
 }
 
+// Lets /search in Telegram drive the same pipeline the schedule uses.
+onSearchRequest(runSearch);
+
 async function main() {
   const problems = assertReady();
   if (problems.length) {
@@ -72,12 +84,36 @@ async function main() {
     process.exit(0);
   }
 
-  const [sh, sm] = config.searchTime.split(':');
-  const [rh, rm] = config.reportTime.split(':');
-  const opts = { timezone: config.timezone };
+  // A plain daily cron silently skips its slot if the Mac is asleep at that
+  // minute — a closed lid at 09:00 would mean no jobs that day, with no sign
+  // anything was missed. So instead of firing at an exact minute, check every
+  // few minutes whether today's run is still owed, and catch up on wake.
+  const due = (kind, at) => {
+    const [h, m] = at.split(':').map(Number);
+    const now = new Date();
+    const today = now.toLocaleDateString('en-CA');           // YYYY-MM-DD, local
+    if (state[kind] === today) return false;                 // already done today
+    return now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
+  };
 
-  cron.schedule(`${sm} ${sh} * * *`, () => runSearch().catch((e) => log('search error', e)), opts);
-  cron.schedule(`${rm} ${rh} * * *`, () => dailyReport().catch((e) => log('report error', e)), opts);
+  const markDone = (kind) => {
+    state[kind] = new Date().toLocaleDateString('en-CA');
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  };
+
+  const tick = async () => {
+    if (due('lastSearch', config.searchTime)) {
+      markDone('lastSearch');                                 // mark first, so a
+      await runSearch().catch((e) => log('search error', e)); // crash can't loop
+    }
+    if (due('lastReport', config.reportTime)) {
+      markDone('lastReport');
+      await dailyReport().catch((e) => log('report error', e));
+    }
+  };
+
+  cron.schedule('*/5 * * * *', () => { tick(); }, { timezone: config.timezone });
+  setTimeout(tick, 15000);  // and check once shortly after startup
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
@@ -89,7 +125,11 @@ async function main() {
     send(
       `🤖 Job bot online.\n`
       + `Daily search at <b>${config.searchTime}</b>, report at <b>${config.reportTime}</b>.\n\n`
-      + `/pending — jobs awaiting your decision\n/stats — totals so far`,
+      + `/search — search right now\n`
+      + `/pending — jobs awaiting your decision\n`
+      + `/report — today's summary\n`
+      + `/stats — totals so far\n`
+      + `/help — this list`,
     ).catch((e) => log('startup message failed', e.message));
   }).catch((err) => {
     log('bot stopped:', err?.message ?? err);

@@ -7,7 +7,12 @@ NODE="$(which node)"
 LABEL="com.kamran.iosjobbot"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
-mkdir -p "$HOME/Library/LaunchAgents" "$DIR/data"
+# The log must live outside ~/Desktop, ~/Documents and ~/Downloads. macOS
+# privacy protection (TCC) blocks launchd from creating files there, and it
+# fails silently — the service just exits 78 with no output anywhere.
+LOG="$HOME/Library/Logs/$LABEL.log"
+
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs" "$DIR/data"
 
 cat > "$PLIST" <<PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -23,8 +28,8 @@ cat > "$PLIST" <<PLISTEOF
   <key>WorkingDirectory</key><string>$DIR</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>$DIR/data/bot.log</string>
-  <key>StandardErrorPath</key><string>$DIR/data/bot.log</string>
+  <key>StandardOutPath</key><string>$LOG</string>
+  <key>StandardErrorPath</key><string>$LOG</string>
 </dict>
 </plist>
 PLISTEOF
@@ -34,6 +39,6 @@ launchctl load "$PLIST"
 
 echo "Installed. The bot now starts automatically at login."
 echo
-echo "  Logs:    tail -f $DIR/data/bot.log"
+echo "  Logs:    tail -f $LOG"
 echo "  Stop:    launchctl unload $PLIST"
 echo "  Restart: launchctl unload $PLIST && launchctl load $PLIST"
