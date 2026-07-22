@@ -11,5 +11,8 @@
   "yearsExperience": "",
   "workAuthorization": "",
   "noticePeriod": "",
-  "salaryExpectation": ""
+  "salaryExpectation": "",
+  "city": "",
+  "state": "",
+  "country": ""
 }

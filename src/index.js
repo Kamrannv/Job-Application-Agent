@@ -40,6 +40,7 @@ export async function runSearch() {
   for (const job of batch) {
     try {
       job.coverLetter = await writeCoverLetter(job);
+      job.geoNote = job.geoNote ?? null;
       const id = insertJob(job);
       await sendJobCard(getJob(id));
       sent++;

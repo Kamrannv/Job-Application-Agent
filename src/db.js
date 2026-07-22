@@ -17,7 +17,8 @@ db.exec(`
     status        TEXT NOT NULL,   -- pending | applied | skipped | failed | manual
     cover_letter  TEXT,
     decided_at    TEXT,
-    note          TEXT
+    note          TEXT,
+    geo_note      TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   CREATE INDEX IF NOT EXISTS idx_jobs_found  ON jobs(found_at);
@@ -40,12 +41,12 @@ export function insertJob(job) {
   const id = jobId(job);
   db.prepare(`
     INSERT OR IGNORE INTO jobs
-      (id, source, company, title, url, location, description, found_at, status, cover_letter)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+      (id, source, company, title, url, location, description, found_at, status, cover_letter, geo_note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `).run(
     id, job.source, job.company, job.title, job.url,
     job.location ?? '', job.description ?? '', new Date().toISOString(),
-    job.coverLetter ?? null,
+    job.coverLetter ?? null, job.geoNote ?? null,
   );
   return id;
 }

@@ -1,7 +1,6 @@
 node_modules/
 .env
-.DS_Store
-data/jobs.db
-data/screenshots/
-resume/
 profile.json
+resume/
+data/
+.DS_Store

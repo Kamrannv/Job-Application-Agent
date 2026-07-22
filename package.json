@@ -10,7 +10,8 @@
     "report": "node src/index.js --report-now",
     "check": "node src/check.js",
     "chatid": "node src/chatid.js",
-    "import-resume": "node src/import-resume.js"
+    "import-resume": "node src/import-resume.js",
+    "revalidate": "node src/revalidate.js"
   },
   "license": "ISC",
   "dependencies": {

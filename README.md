@@ -1,11 +1,41 @@
 # iOS Job Bot
 
-Searches ~25 job boards every morning for **remote iOS roles**, skips anything in
-Azerbaijan and anything you've already seen, writes a cover letter tailored to each
-posting, and sends you a Telegram card with **✅ Apply** and **⏭ Skip** buttons.
-Tapping ✅ fills and submits the real application form. At 21:00 you get a report.
+Searches ~25 job boards every morning for **remote iOS roles you can actually be
+hired into from Azerbaijan**, skips anything you've already seen, writes a cover
+letter tailored to each posting, and sends you a Telegram card with **✅ Apply**
+and **⏭ Skip** buttons. Tapping ✅ fills and submits the real application form.
+At 21:00 you get a report.
 
 You never search. You tap.
+
+## What counts as a match
+
+The hard part isn't finding iOS jobs — it's discarding the ~95% that say
+"remote" but mean "remote *within the United States*". A posting has to clear
+three gates:
+
+1. **Genuinely iOS** — Swift, SwiftUI, UIKit, Objective-C or Xcode in the role,
+   not just "mobile"
+2. **Genuinely remote** — not hybrid, not on-site
+3. **Geographically open to you** — see below. This is the strictest gate.
+
+`src/geo.js` requires *positive evidence* that a role hires beyond one country:
+
+| Location says | Verdict |
+|---|---|
+| Worldwide / Anywhere / Global | ✅ |
+| EMEA / Europe / CEE / CIS / Central Asia | ✅ |
+| Azerbaijan | ✅ |
+| Bare "Remote" with no country | ✅ flagged as unverified |
+| Remote – United States, Remote – Canada | ❌ |
+| Berlin / London / any single city | ❌ |
+| Germany / UK / India / any single country | ❌ |
+| Body demands US/EU/UK work authorization | ❌ |
+
+Naming exactly one country is treated as a restriction, because that is what it
+nearly always is. This is deliberately aggressive: a false reject costs you one
+job you'd probably not have got anyway, a false accept costs a cover letter and
+the time you spend on an application that cannot succeed.
 
 ---
 
@@ -92,15 +122,27 @@ terms and gets accounts restricted.
 
 ---
 
-## Expect a handful of jobs, not a flood
+## Expect very few jobs, and that is correct
 
-A live run today found **1,980 postings** across all sources and **7** were genuinely
-remote iOS roles. That is normal — remote iOS jobs are scarce. The bot's value is
-that it checks every source every day and catches them the day they appear.
+A live run found **2,433 postings** across all sources. Exactly **1** was a
+senior iOS role that was both genuinely remote and genuinely open to a candidate
+in Azerbaijan.
 
-If you want more volume, the highest-leverage change is adding companies to
-`companies.json`. Company boards are checked directly, so you see the job before
-it reaches any aggregator.
+That is not the filter failing — that is the market. Most "remote" iOS jobs are
+remote-within-the-US. Filtering them out is the single most valuable thing this
+bot does, because every one it discards is an application that could never have
+succeeded.
+
+Expect **0–2 matches per day**, and many days with none. Some weeks will be
+empty. The value is that you stop checking, and when a genuinely open role
+appears you hear about it that morning with the letter already written.
+
+If you want more volume, in order of impact:
+
+1. **Add companies to `companies.json`** — especially EU and remote-first ones
+2. **Loosen `src/geo.js`** — e.g. accept single European countries if you would
+   consider relocating
+3. **Widen `src/match.js`** — accept mid-level as well as senior roles
 
 ---
 

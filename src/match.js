@@ -2,6 +2,7 @@
  * Decides which postings are worth your time. Runs before any API call, so
  * cover letters are only generated for jobs that already passed every filter.
  */
+import { geoCheck } from './geo.js';
 
 const IOS_STRONG = /\b(ios|swiftui|uikit|swift|objective-?c|xcode|app\s*store|core\s?data|combine|apple\s?platform|visionos|watchos|tvos)\b/i;
 const IOS_TITLE = /\b(ios|swift|apple|mobile|iphone|ipad)\b/i;
@@ -49,15 +50,25 @@ export function matchJob(job) {
     return { ok: false, reason: 'not marked remote' };
   }
 
+  // Remote is not enough — it has to be remote in a region that can hire you.
+  const geo = geoCheck(job);
+  if (!geo.ok) {
+    return { ok: false, reason: geo.reason };
+  }
+
   // Rough ranking so the best matches reach you first each morning.
   let score = 0;
   if (iosInTitle) score += 40;
   if (/\bswift\s?ui\b/i.test(text)) score += 15;
   if (/\bsenior|staff|lead\b/i.test(title)) score += 10;
-  if (/\bworldwide|anywhere|global\b/i.test(where)) score += 15;
   if (job.source.startsWith('Greenhouse') || job.source.startsWith('Lever')) score += 20;
 
-  return { ok: true, score };
+  // A role you can definitely be hired into outranks one you merely might.
+  if (geo.confidence === 'high') score += 30;
+  if (/\bworldwide|anywhere|global\b/i.test(job.location || '')) score += 20;
+  if (/\b(emea|europe|european)\b/i.test(job.location || '')) score += 15;
+
+  return { ok: true, score, geoConfidence: geo.confidence, geoNote: geo.note };
 }
 
 export function filterAndRank(jobs) {
@@ -65,5 +76,5 @@ export function filterAndRank(jobs) {
     .map((job) => ({ job, verdict: matchJob(job) }))
     .filter(({ verdict }) => verdict.ok)
     .sort((a, b) => b.verdict.score - a.verdict.score)
-    .map(({ job, verdict }) => ({ ...job, score: verdict.score }));
+    .map(({ job, verdict }) => ({ ...job, score: verdict.score, geoConfidence: verdict.geoConfidence, geoNote: verdict.geoNote }));
 }

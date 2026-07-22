@@ -31,6 +31,27 @@ async function fillFirst(page, selectors, value) {
   return false;
 }
 
+/**
+ * Greenhouse renders company-specific questions with unpredictable `name`
+ * attributes, so those have to be found by their visible label instead.
+ */
+async function fillByLabel(page, pattern, value) {
+  if (!value) return false;
+  const field = page.getByLabel(pattern).first();
+  try {
+    if (!await field.count()) return false;
+    const tag = await field.evaluate((el) => el.tagName.toLowerCase());
+    if (tag === 'select') {
+      await field.selectOption({ label: String(value) }).catch(() => field.selectOption(String(value)));
+    } else {
+      await field.fill(String(value));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function uploadResume(page) {
   const input = page.locator('input[type="file"]').first();
   if (!await input.count()) return false;
@@ -52,6 +73,17 @@ async function applyGreenhouse(page, job) {
   await fillFirst(page, ['input[name*="linkedin" i]', 'input[id*="linkedin" i]'], profile.linkedin);
   await fillFirst(page, ['input[name*="github" i]', 'input[id*="github" i]'], profile.github);
   await fillFirst(page, ['input[name*="website" i]', 'input[id*="portfolio" i]'], profile.portfolio);
+
+  // Company-specific required questions, matched by their visible label.
+  await fillByLabel(page, /legal first name/i, profile.firstName);
+  await fillByLabel(page, /legal last name/i, profile.lastName);
+  await fillByLabel(page, /preferred first name/i, profile.firstName);
+  await fillByLabel(page, /^\s*city|location \(city\)/i, profile.city || profile.location);
+  await fillByLabel(page, /^\s*state|province/i, profile.state);
+  await fillByLabel(page, /country/i, profile.country || profile.location);
+  await fillByLabel(page, /linkedin/i, profile.linkedin);
+  await fillByLabel(page, /github/i, profile.github);
+  await fillByLabel(page, /website|portfolio/i, profile.portfolio);
 
   filled.resume = await uploadResume(page);
   await fillFirst(page, ['textarea[name*="cover" i]', 'textarea#cover_letter_text'], job.cover_letter);
@@ -85,6 +117,82 @@ async function applyLever(page, job) {
 }
 
 /**
+ * Required fields still empty *before* submitting. Clicking submit with any of
+ * these is guaranteed to fail, so it is better to hand the job back to you than
+ * to fire a doomed request and call it an application.
+ */
+async function unfilledRequired(page) {
+  return page.evaluate(() => {
+    const missing = new Set();
+
+    const labelFor = (el) => {
+      if (el.id) {
+        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (l?.textContent.trim()) return l.textContent.trim();
+      }
+      for (let n = el.parentElement, hops = 0; n && hops < 4; n = n.parentElement, hops++) {
+        const l = n.querySelector('label');
+        if (l?.textContent.trim()) return l.textContent.trim();
+      }
+      return el.name || el.id || 'unnamed field';
+    };
+
+    for (const el of document.querySelectorAll('input, select, textarea')) {
+      if (el.type === 'hidden' || el.type === 'file' || el.disabled) continue;
+      if (!el.getBoundingClientRect().height) continue;
+
+      const label = labelFor(el);
+      const required = el.required
+        || el.getAttribute('aria-required') === 'true'
+        || /\*/.test(label);
+      if (!required) continue;
+      if (String(el.value || '').trim()) continue;
+
+      missing.add(label.replace(/\s*\*\s*$/, '').replace(/\s+/g, ' ').slice(0, 60));
+    }
+    return [...missing];
+  });
+}
+
+/**
+ * Reads the validation messages a rejected form renders. Their presence means
+ * nothing was submitted, no matter what else the page says.
+ */
+async function validationErrors(page) {
+  return page.evaluate(() => {
+    const out = new Set();
+    const isRequiredMsg = (t) => /required|please (enter|select|complete)|cannot be blank|must be/i.test(t);
+
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.children.length) continue;                       // leaf nodes only
+      const text = (el.textContent || '').trim();
+      if (!text || text.length > 120 || !isRequiredMsg(text)) continue;
+      if (!el.getBoundingClientRect().height) continue;        // must be visible
+
+      // Walk up to find the field this message belongs to, and name it.
+      let label = '';
+      for (let n = el.parentElement, hops = 0; n && hops < 4; n = n.parentElement, hops++) {
+        const l = n.querySelector('label');
+        if (l && l.textContent.trim()) { label = l.textContent.trim().replace(/\s*\*\s*$/, ''); break; }
+      }
+      out.add(label || text);
+    }
+    return [...out];
+  });
+}
+
+/**
+ * Only a genuine confirmation counts. Checked against visible body text and the
+ * URL — never the raw HTML, which contains words like "success" in every
+ * analytics snippet ever written.
+ */
+async function confirmedSubmitted(page) {
+  if (/confirmation|thank|success|applied/i.test(page.url())) return true;
+  const text = await page.evaluate(() => document.body.innerText || '');
+  return /thank you for applying|application (was )?(submitted|received)|your application has been|we(?:'ve| have) received your application|thanks for applying/i.test(text);
+}
+
+/**
  * @returns {Promise<{status:'applied'|'manual'|'failed', note:string, screenshot?:string}>}
  */
 export async function applyToJob(job, { dryRun = false } = {}) {
@@ -107,20 +215,48 @@ export async function applyToJob(job, { dryRun = false } = {}) {
 
     await page.screenshot({ path: shot, fullPage: true });
 
+    const missing = await unfilledRequired(page);
+
     if (dryRun) {
-      return { status: 'manual', note: 'DRY RUN — form filled but not submitted', screenshot: shot };
+      const note = missing.length
+        ? `DRY RUN — filled, but ${missing.length} required field(s) still empty: ${missing.slice(0, 6).join(', ')}`
+        : 'DRY RUN — all required fields filled, not submitted';
+      return { status: 'manual', note, screenshot: shot };
+    }
+
+    // Refuse to submit a form that cannot succeed.
+    if (missing.length) {
+      return {
+        status: 'manual',
+        note: `not submitted — this form needs ${missing.length} field(s) I can't answer: ${missing.slice(0, 6).join(', ')}. Everything else is filled; finish it in the browser.`,
+        screenshot: shot,
+      };
     }
     if (!await submit.count()) throw new Error('submit button not found');
 
     await submit.click();
     await page.waitForTimeout(6000);
-
-    const confirmed = /thank|received|submitted|confirmation|success/i.test(await page.content());
     await page.screenshot({ path: shot, fullPage: true });
 
-    return confirmed
-      ? { status: 'applied', note: `submitted via ${ats}`, screenshot: shot }
-      : { status: 'manual', note: `submitted via ${ats} but no confirmation text found — verify manually`, screenshot: shot };
+    // Validation errors are the definitive signal that nothing was submitted.
+    // Check them FIRST — a rejected form still renders the whole page.
+    const errors = await validationErrors(page);
+    if (errors.length) {
+      return {
+        status: 'failed',
+        note: `not submitted — ${errors.length} required field(s) rejected: ${errors.slice(0, 6).join(', ')}`,
+        screenshot: shot,
+      };
+    }
+
+    if (await confirmedSubmitted(page)) {
+      return { status: 'applied', note: `submitted via ${ats}`, screenshot: shot };
+    }
+    return {
+      status: 'manual',
+      note: `clicked submit on ${ats} but saw no confirmation — check the screenshot and verify by hand`,
+      screenshot: shot,
+    };
   } catch (err) {
     await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
     return { status: 'failed', note: `${ats}: ${err.message}`, screenshot: shot };

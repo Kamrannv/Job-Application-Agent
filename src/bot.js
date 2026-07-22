@@ -18,9 +18,15 @@ export function jobCard(job) {
   const ats = detectAts(job.url);
   const auto = ats === 'greenhouse' || ats === 'lever';
 
+  // Be explicit about how confident we are that you can actually take the job.
+  const geo = job.geo_note
+    ? `⚠️ ${esc(job.geo_note)} — verify they hire outside that country`
+    : `🌍 Open region — no country restriction found`;
+
   const text = [
     `<b>${esc(job.title)}</b>`,
     `🏢 ${esc(job.company)}   📍 ${esc(job.location || 'Remote')}`,
+    geo,
     `🔗 <a href="${esc(job.url)}">View posting</a>  ·  <i>${esc(job.source)}</i>`,
     auto ? `⚙️ Auto-apply supported (${ats})` : `✍️ ${ats} — I'll fill what I can, you finish it`,
     '',

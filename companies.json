@@ -1,28 +1,25 @@
 {
-  "_comment": "Company career boards checked directly every day. This is the highest-signal source — you reach the job the day it is posted, before the aggregators pick it up. Find the token in the careers URL: boards.greenhouse.io/TOKEN or jobs.lever.co/TOKEN. Every token below was verified working. If one starts 404ing, the company moved to a different ATS — just delete it.",
+  "_comment": "Company career boards checked directly every day — the highest-signal source, because you see the job the day it posts. This list is deliberately weighted toward European and remote-first companies that can hire someone based in Azerbaijan. Find the token in the careers URL: boards.greenhouse.io/TOKEN or jobs.lever.co/TOKEN. Every token here was verified working; if one starts 404ing the company moved ATS, just delete it.",
 
   "greenhouse": [
-    "duolingo",
-    "robinhood",
-    "flexport",
-    "airtable",
-    "gusto",
-    "mozilla",
-    "webflow",
-    "faire",
+    "canonical",
     "gitlab",
-    "doximity",
-    "affirm",
-    "coinbase",
-    "discord",
-    "chime",
+    "elastic",
+    "sumup",
+    "wolt",
+    "n26",
+    "contentful",
+    "typeform",
+    "mozilla",
+    "remote",
     "oura",
     "life360",
-    "peloton"
+    "coinbase"
   ],
 
   "lever": [
-    "spotify",
-    "ro"
+    "swordhealth",
+    "pipedrive",
+    "spotify"
   ]
 }

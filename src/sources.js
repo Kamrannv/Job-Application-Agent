@@ -82,14 +82,105 @@ async function himalayas() {
 }
 
 async function jobicy() {
-  const { jobs = [] } = await getJson('https://jobicy.com/api/v2/remote-jobs?industry=dev&count=50');
-  return jobs.map((j) => ({
+  // Jobicy supports a geo filter, so ask it directly for the regions that can
+  // actually hire you instead of filtering a US-heavy firehose afterwards.
+  const urls = [
+    'https://jobicy.com/api/v2/remote-jobs?industry=dev&count=50',
+    'https://jobicy.com/api/v2/remote-jobs?geo=europe&count=50',
+    'https://jobicy.com/api/v2/remote-jobs?geo=emea&count=50',
+  ];
+  const results = await Promise.all(urls.map((u) => getJson(u).then((d) => d.jobs || []).catch(() => [])));
+  return results.flat().map((j) => ({
     source: 'Jobicy',
     company: j.companyName,
     title: j.jobTitle,
     url: j.url,
     location: j.jobGeo || 'Remote',
     description: strip(j.jobExcerpt || j.jobDescription),
+    remoteOnly: REMOTE_ONLY,
+  }));
+}
+
+/**
+ * HubMub has no API, but its listing pages are plain server-rendered HTML and
+ * robots.txt allows crawling. Listings carry title/company/country; the full
+ * description lives on the detail page, so those are fetched only for the
+ * postings that actually look like iOS roles.
+ */
+async function hubmub() {
+  const html = async (url) => {
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(25000) });
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.text();
+  };
+
+  const decode = (s = '') => s
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+
+  // categories[]=30 is HubMub's software/engineering category.
+  const searches = ['ios', 'swift', 'swiftui'];
+  const pages = [1, 2];
+  const listUrls = searches.flatMap((q) =>
+    pages.map((p) => `https://www.hubmub.com/jobs?search=${q}&type%5B%5D=Remote&categories%5B%5D=30&page=${p}`));
+
+  const bodies = await Promise.all(listUrls.map((u) => html(u).catch(() => '')));
+
+  const found = new Map(); // url -> job, dedupes across the search terms
+  for (const body of bodies) {
+    // Each card opens with a full-bleed anchor to the job detail page.
+    const cards = body.split(/<a href="https:\/\/www\.hubmub\.com\/jobs\//).slice(1);
+    for (const card of cards) {
+      const urlMatch = card.match(/^([^"]+)"/);
+      if (!urlMatch) continue;
+      const url = `https://www.hubmub.com/jobs/${decode(urlMatch[1])}`;
+
+      const title = decode((card.match(/<h3[^>]*>([\s\S]*?)<\/h3>/) || [])[1] || '')
+        .replace(/<[^>]+>/g, '').trim();
+      const company = decode((card.match(/alt="([^"]*)"/) || [])[1] || '');
+      // Country sits in a span right after its flag emoji.
+      const country = decode((card.match(/[\u{1F1E6}-\u{1F1FF}]{2}<\/span>\s*<span class="truncate">([^<]+)<\/span>/u) || [])[1] || '');
+
+      if (!title || !company) continue;
+      found.set(url, {
+        source: 'HubMub',
+        company,
+        title,
+        url,
+        // Cards tagged Remote with no country are worldwide-remote.
+        location: country || 'Remote',
+        description: '',
+        remoteOnly: /<span>Remote<\/span>/.test(card) ? REMOTE_ONLY : false,
+      });
+    }
+  }
+
+  // Only pay for detail pages on postings that read as iOS roles.
+  const candidates = [...found.values()]
+    .filter((j) => /\b(ios|swift|swiftui|apple|mobile)\b/i.test(j.title))
+    .slice(0, 25);
+
+  await Promise.all(candidates.map(async (job) => {
+    try {
+      const page = await html(job.url);
+      const prose = page.match(/<div class="prose[^"]*">([\s\S]*?)<\/div>/);
+      if (prose) job.description = strip(decode(prose[1])).slice(0, 8000);
+    } catch { /* description is optional; the listing data still stands */ }
+  }));
+
+  return candidates;
+}
+
+async function workingnomads() {
+  const rows = await getJson('https://www.workingnomads.com/api/exposed_jobs/');
+  return (rows || []).map((j) => ({
+    source: 'WorkingNomads',
+    company: j.company_name,
+    title: j.title,
+    url: j.url,
+    location: j.location || 'Remote',
+    description: strip(j.description),
     remoteOnly: REMOTE_ONLY,
   }));
 }
@@ -148,6 +239,8 @@ export async function fetchAllJobs(log = console.log) {
     ['Arbeitnow', arbeitnow],
     ['Himalayas', himalayas],
     ['Jobicy', jobicy],
+    ['HubMub', hubmub],
+    ['WorkingNomads', workingnomads],
     ['WeWorkRemotely', weworkremotely],
     ...companies.greenhouse.map((t) => [`Greenhouse:${t}`, () => greenhouse(t)]),
     ...companies.lever.map((t) => [`Lever:${t}`, () => lever(t)]),
