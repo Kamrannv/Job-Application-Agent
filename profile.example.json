@@ -1,0 +1,15 @@
+{
+  "_comment": "Your details, used to fill application forms and to sign cover letters. Replace every value below.",
+  "firstName": "",
+  "lastName": "",
+  "email": "",
+  "phone": "",
+  "linkedin": "",
+  "github": "",
+  "portfolio": "",
+  "location": "",
+  "yearsExperience": "",
+  "workAuthorization": "",
+  "noticePeriod": "",
+  "salaryExpectation": ""
+}

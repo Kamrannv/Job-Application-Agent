@@ -1,0 +1,28 @@
+{
+  "_comment": "Company career boards checked directly every day. This is the highest-signal source — you reach the job the day it is posted, before the aggregators pick it up. Find the token in the careers URL: boards.greenhouse.io/TOKEN or jobs.lever.co/TOKEN. Every token below was verified working. If one starts 404ing, the company moved to a different ATS — just delete it.",
+
+  "greenhouse": [
+    "duolingo",
+    "robinhood",
+    "flexport",
+    "airtable",
+    "gusto",
+    "mozilla",
+    "webflow",
+    "faire",
+    "gitlab",
+    "doximity",
+    "affirm",
+    "coinbase",
+    "discord",
+    "chime",
+    "oura",
+    "life360",
+    "peloton"
+  ],
+
+  "lever": [
+    "spotify",
+    "ro"
+  ]
+}

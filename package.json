@@ -1,0 +1,24 @@
+{
+  "name": "ios-job-bot",
+  "version": "1.0.0",
+  "description": "Finds remote iOS jobs daily, writes tailored cover letters, applies after your approval in Telegram",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "search": "node src/index.js --search-now",
+    "report": "node src/index.js --report-now",
+    "check": "node src/check.js",
+    "chatid": "node src/chatid.js",
+    "import-resume": "node src/import-resume.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.5",
+    "dotenv": "^17.4.2",
+    "node-cron": "^4.6.0",
+    "playwright": "^1.61.1",
+    "rss-parser": "^3.13.0",
+    "telegraf": "^4.16.3"
+  }
+}
