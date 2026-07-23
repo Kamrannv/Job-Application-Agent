@@ -1,6 +1,7 @@
 {
   "_comment": "Company career boards checked directly every day — the highest-signal source, because you see the job the day it posts. This list is deliberately weighted toward European and remote-first companies that can hire someone based in Azerbaijan. Find the token in the careers URL: boards.greenhouse.io/TOKEN or jobs.lever.co/TOKEN. Every token here was verified working; if one starts 404ing the company moved ATS, just delete it.",
 
+  
   "greenhouse": [
     "canonical",
     "gitlab",
